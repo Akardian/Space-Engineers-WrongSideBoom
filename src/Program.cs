@@ -17,17 +17,15 @@ using VRage.Game;
 using VRage;
 using VRageMath;
 
-namespace IngameScript
-{
- 
+namespace IngameScript 
+{    
     partial class Program : MyGridProgram
     {
         // The Warhead detonation tine
-        private const int TIME = 20;
+        private int TIME = 20;
 
         // The LCD debug screen
         private const string LCD = "Boom LCD";
-
 
         private const UpdateType COMMAND_UPDATE = UpdateType.Trigger | UpdateType.Terminal;
         private IMyTextPanel _LogOutput;
@@ -40,14 +38,19 @@ namespace IngameScript
             try
             {
                 // Replace the Echo
-                Echo = EchoToLCD;
+                
                 // Fetch a log text panel
                 _LogOutput = GridTerminalSystem.GetBlockWithName(LCD) as IMyTextPanel;
-                _LogOutput.BackgroundColor = new Color(0, 0, 0, 255);
-                _LogOutput.FontColor = new Color(0, 255, 0, 255);
-                _LogOutput.FontSize = 0.8f;
+                if (_LogOutput != null)
+                {
+                    _LogOutput.BackgroundColor = new Color(0, 0, 0, 255);
+                    _LogOutput.FontColor = new Color(0, 255, 0, 255);
+                    _LogOutput.FontSize = 0.8f;
 
-                _LogOutput?.WriteText("");
+                    Echo = EchoToLCD;
+                }
+
+                _LogOutput?.WriteText("", true);
                 Echo("Boom LCD\n");
 
                 GridTerminalSystem.GetBlocksOfType(_Warheads);
