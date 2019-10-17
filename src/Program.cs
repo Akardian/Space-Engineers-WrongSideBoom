@@ -21,11 +21,16 @@ namespace IngameScript
 {    
     partial class Program : MyGridProgram
     {
-        // The Warhead detonation tine
+        // The Warhead detonation time,  0 < Time < 3600
         private int TIME = 20;
+
+        // 1 = Script runs every 100 ticks, 10 Script, needs to be bigger than 0
+        private const int TICK_MULTIPLIER = 10;
 
         // The LCD debug screen
         private const string LCD = "Boom LCD";
+
+        private int _tickMultiplier = 0;
 
         private const UpdateType COMMAND_UPDATE = UpdateType.Trigger | UpdateType.Terminal;
         private IMyTextPanel _LogOutput;
@@ -33,12 +38,13 @@ namespace IngameScript
         private IMyTerminalBlock _CheckBlock;
         private List<IMyWarhead> _Warheads = new List<IMyWarhead>();
         private bool countdown = false;
+
         public Program()
         {
             try
             {
                 // Replace the Echo
-                
+
                 // Fetch a log text panel
                 _LogOutput = GridTerminalSystem.GetBlockWithName(LCD) as IMyTextPanel;
                 if (_LogOutput != null)
@@ -50,15 +56,26 @@ namespace IngameScript
                     Echo = EchoToLCD;
                 }
 
-                _LogOutput?.WriteText("", true);
-                Echo("Boom LCD\n");
+                _LogOutput?.WriteText("");
+                Echo("");
 
-                GridTerminalSystem.GetBlocksOfType(_Warheads);
-
-                if(TIME < 1 || TIME > 3600)
+                if (TIME < 1 || TIME > 3600 || TICK_MULTIPLIER < 1)
                 {
-                    throw new InvalidOperationException("_DetonationTime is out of bounds");
+                    throw new InvalidOperationException("_DetonationTime or tick multiplier is out of bounds");
                 }
+
+                _CheckBlock = GridTerminalSystem.GetBlockWithName(Me.CustomData);
+                if (_CheckBlock == null) {
+                    throw new NullReferenceException("Exception: Master block not found");
+                }
+
+                _tickMultiplier = TICK_MULTIPLIER;
+                Runtime.UpdateFrequency = UpdateFrequency.Update100;
+            }
+            catch (NullReferenceException e)
+            {
+                Echo($"Exception: {e}\n---");
+                throw;
             }
             catch (InvalidOperationException e)
             {
@@ -74,47 +91,42 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateType)
         {
-            try
-            {
-                if ((updateType & COMMAND_UPDATE) != 0)
+            _tickMultiplier++;
+            if (_tickMultiplier > TICK_MULTIPLIER) {
+                try
                 {
-                    RunCommand(argument);
+                    if ((updateType & COMMAND_UPDATE) != 0)
+                    {
+                        RunCommand(argument);
+                    } 
+                    if ((updateType & UpdateType.Update100) != 0)
+                    {
+                        RunContinuousLogic();
+                    }
                 }
-                if ((updateType & UpdateType.Update100) != 0)
+                catch (Exception e)
                 {
-                    RunContinuousLogic();
+                    Echo($"Exception: {e}\n---");
+                    throw;
                 }
-            }
-            catch (Exception e)
-            {
-                Echo($"Exception: {e}\n---");
-                throw;
-            }
+                _tickMultiplier = 0;
+            } 
         }
 
         private void RunCommand(string argument)
         {
-            _CheckBlock = null;
-            _CheckBlock = GridTerminalSystem.GetBlockWithName(argument);
-            if(_CheckBlock != null)
-            {
-                Echo(_CheckBlock.CustomName);
-                Runtime.UpdateFrequency = UpdateFrequency.Update100;
-            } else
-            {
-                Echo($"Block not {argument} found");
-            }                
+
         }
 
         private void RunContinuousLogic()
         {
             if(_CheckBlock.IsFunctional && _CheckBlock.HasPlayerAccess(Me.OwnerId))
             {
-                Echo($"CheckBlock: {_CheckBlock.CustomName}\nWorking");
+                Echo($"Master: {_CheckBlock.CustomName}\nWorking\n");
             } else
             {
                 GridTerminalSystem.GetBlocksOfType(_Warheads);
-                Echo($"CheckBlock: {_CheckBlock.CustomName}\nBroken\nWarheads: {_Warheads.Count}");
+                Echo($"Master: {_CheckBlock.CustomName}\nBroken\nWarheads: {_Warheads.Count}\n");
 
                 if (!countdown)
                 {
@@ -124,7 +136,10 @@ namespace IngameScript
                         warhead.IsArmed = true;
                         warhead.DetonationTime = TIME;
                         warhead.StartCountdown();
+
                     }
+                    Runtime.UpdateFrequency = UpdateFrequency.None;
+                    _LogOutput?.WriteText("\nRUN!!!", true);
                 }
             }
         }
